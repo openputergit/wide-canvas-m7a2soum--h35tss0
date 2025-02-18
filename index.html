@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Med_Mentors - Healthcare Analytics Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <nav class="bg-blue-600 text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold">Med_Mentors</h1>
+            <div class="space-x-4">
+                <button onclick="switchTab('recommendation')" class="hover:text-blue-200">Medicine Recommendation</button>
+                <button onclick="switchTab('analysis')" class="hover:text-blue-200">Time Series Analysis</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Medicine Recommendation Section -->
+    <div id="recommendation" class="container mx-auto p-6">
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h2 class="text-2xl font-bold mb-4">Medicine Recommendation System</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-lg font-semibold mb-3">Symptoms</h3>
+                    <select id="symptoms" multiple class="w-full p-2 border rounded-lg h-32">
+                        <option value="fever">Fever</option>
+                        <option value="cough">Cough</option>
+                        <option value="headache">Headache</option>
+                        <option value="fatigue">Fatigue</option>
+                        <option value="bodyache">Body Ache</option>
+                    </select>
+                    
+                    <h3 class="text-lg font-semibold mt-4 mb-3">Severity (1-10)</h3>
+                    <input type="range" id="severity" min="1" max="10" class="w-full" value="5">
+                    <div class="text-center" id="severityValue">5</div>
+                    
+                    <button onclick="getMedicineRecommendation()" class="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
+                        Get Recommendation
+                    </button>
+                </div>
+                
+                <div id="recommendationResult" class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-gray-500">Recommendation will appear here...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Time Series Analysis Section -->
+    <div id="analysis" class="container mx-auto p-6 hidden">
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-2xl font-bold mb-4">Time Series Analysis</h2>
+            
+            <div class="mb-6">
+                <label class="block text-sm font-medium mb-2">Upload Data (CSV)</label>
+                <input type="file" id="csvFile" accept=".csv" class="block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-blue-50 file:text-blue-700
+                    hover:file:bg-blue-100"/>
+                <p class="text-sm text-gray-500 mt-1">CSV should contain columns: date, medicine_sales, disease_count</p>
+            </div>
+
+            <div class="mb-6">
+                <canvas id="timeSeriesChart" class="w-full h-[400px]"></canvas>
+            </div>
+
+            <div id="analysisReport" class="bg-gray-50 p-4 rounded-lg">
+                <p class="text-gray-500">Analysis report will appear here after data upload...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentChart = null;
+        
+        // Tab switching
+        function switchTab(tab) {
+            document.getElementById('recommendation').classList.add('hidden');
+            document.getElementById('analysis').classList.add('hidden');
+            document.getElementById(tab).classList.remove('hidden');
+        }
+
+        // Severity slider
+        document.getElementById('severity').addEventListener('input', function(e) {
+            document.getElementById('severityValue').textContent = e.target.value;
+        });
+
+        // Medicine Recommendation System
+        async function getMedicineRecommendation() {
+            const symptoms = Array.from(document.getElementById('symptoms').selectedOptions).map(opt => opt.value);
+            const severity = document.getElementById('severity').value;
+            const resultDiv = document.getElementById('recommendationResult');
+            
+            if (symptoms.length === 0) {
+                resultDiv.innerHTML = '<p class="text-red-500">Please select at least one symptom</p>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<div class="loader mx-auto"></div>';
+
+            try {
+                const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/ai', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer t7qPamowL0TdMh3MRE4LwXHVpHT2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        messages: [{
+                            role: 'user',
+                            content: [{
+                                type: 'text',
+                                text: `Given these symptoms: ${symptoms.join(', ')} with severity ${severity}/10, what medicines would you recommend? Please format the response with medicine names, dosage, and precautions.`
+                            }]
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+                resultDiv.innerHTML = `
+                    <h3 class="font-semibold mb-2">Recommended Medicines:</h3>
+                    <div class="prose">${data.message}</div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="text-red-500">Error getting recommendations. Please try again.</p>';
+            }
+        }
+
+        // Time Series Analysis System
+        document.getElementById('csvFile').addEventListener('change', handleFileUpload);
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                Papa.parse(file, {
+                    header: true,
+                    complete: function(results) {
+                        displayTimeSeriesAnalysis(results.data);
+                    }
+                });
+            }
+        }
+
+        function displayTimeSeriesAnalysis(data) {
+            const dates = data.map(row => row.date);
+            const medicineSales = data.map(row => parseFloat(row.medicine_sales));
+            const diseaseCounts = data.map(row => parseFloat(row.disease_count));
+
+            if (currentChart) {
+                currentChart.destroy();
+            }
+
+            const ctx = document.getElementById('timeSeriesChart').getContext('2d');
+            currentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'Medicine Sales',
+                        data: medicineSales,
+                        borderColor: 'rgb(59, 130, 246)',
+                        tension: 0.1
+                    }, {
+                        label: 'Disease Count',
+                        data: diseaseCounts,
+                        borderColor: 'rgb(239, 68, 68)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            generateAnalysisReport(medicineSales, diseaseCounts);
+        }
+
+        function generateAnalysisReport(medicineSales, diseaseCounts) {
+            const medicinesTrend = getTrend(medicineSales);
+            const diseaseTrend = getTrend(diseaseCounts);
+            
+            let analysis = '';
+            if (medicinesTrend === 'up' && diseaseTrend === 'down') {
+                analysis = 'Preventive medicine usage or possible stockpiling behavior observed.';
+            } else if (medicinesTrend === 'down' && diseaseTrend === 'up') {
+                analysis = 'Potential gap in medicine availability or new prescriptions needed.';
+            } else if (medicinesTrend === 'up' && diseaseTrend === 'up') {
+                analysis = 'Disease outbreak pattern detected with corresponding increase in medicine usage.';
+            } else {
+                analysis = 'Disease containment observed with decreasing medicine requirements.';
+            }
+
+            document.getElementById('analysisReport').innerHTML = `
+                <h3 class="font-semibold mb-2">Analysis Report:</h3>
+                <div class="space-y-2">
+                    <p><span class="font-medium">Period:</span> ${new Date().toLocaleDateString()}</p>
+                    <p><span class="font-medium">Medicine Sales Trend:</span> ${medicinesTrend.toUpperCase()}</p>
+                    <p><span class="font-medium">Disease Count Trend:</span> ${diseaseTrend.toUpperCase()}</p>
+                    <p><span class="font-medium">Analysis:</span> ${analysis}</p>
+                </div>
+            `;
+        }
+
+        function getTrend(data) {
+            const first = data.slice(0, Math.floor(data.length / 2));
+            const second = data.slice(Math.floor(data.length / 2));
+            const firstAvg = first.reduce((a, b) => a + b, 0) / first.length;
+            const secondAvg = second.reduce((a, b) => a + b, 0) / second.length;
+            return secondAvg > firstAvg ? 'up' : 'down';
+        }
+
+        // Initialize with recommendation tab
+        switchTab('recommendation');
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
